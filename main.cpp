@@ -2,6 +2,8 @@
 #include <random>
 #include <vector>
 #include <algorithm>
+#include <windows.h>
+#include <stdexcept>
 
 
 enum Suit {
@@ -9,10 +11,10 @@ enum Suit {
 };
 std::ostream& operator<<(std::ostream& out, const Suit s){
 	switch(s){
-		case Suit::Hearts: out << "Hearts"; break;
-		case Suit::Diamonds: out << "Diamonds"; break;
-		case Suit::Clubs: out << "Clubs"; break;
-		case Suit::Spades: out << "Spades"; break;
+		case Suit::Hearts: out << "♥"; break;
+		case Suit::Diamonds: out << "♦"; break;
+		case Suit::Clubs: out << "♣"; break;
+		case Suit::Spades: out << "♠"; break;
 	}
 	return out;
 }
@@ -21,15 +23,15 @@ enum Rank{
 };
 std::ostream& operator<<(std::ostream& out, const Rank r){
 	switch(r){
-		case Rank::Six: out << "Six"; break;
-		case Rank::Seven: out << "Seven"; break;
-		case Rank::Eight: out << "Eight"; break;
-		case Rank::Nine: out << "Nine"; break;
-		case Rank::Ten: out << "Ten"; break;
-		case Rank::Jack: out << "Jack"; break;
-		case Rank::Queen: out << "Queen"; break;
-		case Rank::King: out << "King"; break;
-		case Rank::Ace: out << "Ace"; break;
+		case Rank::Six: out << "6"; break;
+		case Rank::Seven: out << "7"; break;
+		case Rank::Eight: out << "8"; break;
+		case Rank::Nine: out << "9"; break;
+		case Rank::Ten: out << "10"; break;
+		case Rank::Jack: out << "J"; break;
+		case Rank::Queen: out << "Q"; break;
+		case Rank::King: out << "K"; break;
+		case Rank::Ace: out << "A"; break;
 	}
 	return out;
 }
@@ -53,7 +55,7 @@ struct Card{
 	
 	
 	friend std::ostream& operator<<(std::ostream& out, const Card &c){
-		out << c.r << " Of " << c.s << std::endl;
+		out << c.s << c.r << " ";
 		return out;
 	}
 	bool operator==(const Card& other) const {
@@ -64,14 +66,20 @@ struct Card{
 	}
 };
 typedef std::vector<Card> Deck;
+void generateDeck(Deck &initialDeck, int &dealt);
+void dealCards(Deck &orderedDeck, Deck &playerHand, int &dealt, int dealCount = 5);
+Card generateTrumpCard(Deck &initialDeck, int &dealt);
 
 class Player{
 	private:
 		Deck currentDeck;
 		int currentScore;
 		int generalScore;
+		int d;
+		Deck oDeck;
 	public:
-	Player(Deck d) : currentDeck(d){
+	Player(Deck &orderedDeck, int &dealt) : oDeck(orderedDeck), d(dealt){
+		dealCards(oDeck, currentDeck, d, 5);
 		currentScore = 0;
 		generalScore = 0;
 		std::cout << "Dealt Deck: " << std::endl;
@@ -79,25 +87,54 @@ class Player{
 			std::cout << card;
 		}
 	}
-	void playCard(){
-		Deck playedCards;
+	bool selected = false;
+	Deck selectedCards;
+	void selectCards(){
 		int n;
-		std::cout << "How many cards to play: ";
+		std::cout << "\nHow many cards to select: ";
 		std::cin >> n;
 		std::cout << "Which cards to play: ";
 		int input;
 		for(int i = 0; i < n; i++){
 			std::cin >> input;
-			playedCards.push_back(currentDeck[input - 1]);
+			selectedCards.push_back(currentDeck[input - 1]);
 		}
-		std::cout << "Played Cards: " << std::endl;
-		for(const auto& card : playedCards){
-			std::cout << card;
+		selected = true;
+		if(std::any_of(selectedCards.begin(), selectedCards.end(),
+		[this](const Card &other) 
+		{return other.s != selectedCards[0].s;}
+		)){
+			std::cout << "Selected Cards must have the same Suit!" << std::endl;
+			selectedCards.clear();
+			selected = false;
+			return;
 		}
-		playedCards.clear();
-		
 	}
-		
+	void playCard(){
+		if(selected){
+			std::cout << "Played Cards: " << std::endl;
+			for(const auto& card : selectedCards){
+				std::cout << card;
+				currentDeck.erase(std::find(currentDeck.begin(), currentDeck.end(), card));
+			}
+		}
+		else{
+			std::cout << "No cards have been selected!" << std::endl;
+		}
+	}	
+	void addCards(){
+		try{
+			dealCards(oDeck, currentDeck, d, (5 - currentDeck.size()));
+			std::cout << "\nCards Added! Current Deck: " << std::endl;
+			for(const auto& card : currentDeck){
+				std::cout << card << " ";
+			}
+		}
+		catch(std::invalid_argument &error){
+			std::cout << error.what() << std::endl;
+		}
+	}
+	
 };
 //class GameManagementSystem{
 //	private:
@@ -105,51 +142,63 @@ class Player{
 //		Player playerTwo;
 //}
 
-Deck generateDeck();
-Card generateTrumpCard();
+
 
 int main(){
+	SetConsoleOutputCP(CP_UTF8);
 	
-	Card trumpCard = generateTrumpCard();
+	
+	
+	int dealt = 0;
+	
+	Deck initialDeck;
+	generateDeck(initialDeck, dealt);
+	
+	Card trumpCard = generateTrumpCard(initialDeck, dealt);
 	std::cout << "Trump Card: " << trumpCard << std::endl;;
 	
-	Player playerOne(generateDeck());
-	playerOne.playCard();
+	Player playerOne(initialDeck, dealt);
+	
+	while(1 < 5){
+		playerOne.selectCards();
+		playerOne.playCard();
+		playerOne.addCards();
+	}
 	
 	
 }
-Deck generateDeck(){
-	std::mt19937 static gen(std::random_device{}());
-	std::uniform_int_distribution<> suitRange(1, 4);
-	std::uniform_int_distribution<> rankRange(1, 9);
+void generateDeck(Deck &initialDeck, int &dealt){
 	
-	Deck deck;
-	
-	
-	for(int i = 0; i < 5; i++){
-		Card generated = Card(static_cast<Suit>(suitRange(gen)), static_cast<Rank>(rankRange(gen)));
-		while(generated.dealt){
-			generated = Card(static_cast<Suit>(suitRange(gen)), static_cast<Rank>(rankRange(gen)));
+	for(int i = 1; i <= 4; i++){
+		for(int j = 1; j <= 9; j++){
+			initialDeck.push_back(Card(static_cast<Suit>(i), static_cast<Rank>(j)));
 		}
-		generated.dealt = true;
-		deck.push_back(generated);
-		
 	}
 	
-	return deck;
-	
+	std::shuffle(initialDeck.begin(), initialDeck.end(), std::mt19937{std::random_device{}()});
 	
 }
-Card generateTrumpCard(){
-	std::mt19937 static gen(std::random_device{}());
-	std::uniform_int_distribution<> suitRange(1, 4);
-	std::uniform_int_distribution<> rankRange(1, 9);
-	
-	Card trump(static_cast<Suit>(suitRange(gen)), static_cast<Rank>(rankRange(gen)));
-	while(trump.dealt){
-		trump = Card(static_cast<Suit>(suitRange(gen)), static_cast<Rank>(rankRange(gen)));
+void dealCards(Deck &orderedDeck, Deck &playerHand, int &dealt, int dealCount){
+	try{
+		if(dealt == 36){
+			throw std::invalid_argument("All the cards have been dealt!");
+			return;
+		}
+		if(dealt + dealCount > 36){
+			dealCount = 36 - dealt;
+		}	
+		for(int i = 0; i < dealCount; i++){
+			playerHand.push_back(orderedDeck[dealt]);
+			dealt++;
+		}
 	}
-	trump.dealt = true;
+	catch(std::invalid_argument &error){
+		throw error;
+	}
 	
+}
+Card generateTrumpCard(Deck &orderedDeck, int &dealt){
+	Card trump = orderedDeck[0];
+	dealt++;
 	return trump;
 }
