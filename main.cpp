@@ -1,9 +1,12 @@
 #include <iostream>
+#include <string>
 #include <random>
 #include <vector>
 #include <algorithm>
 #include <windows.h>
 #include <stdexcept>
+#include <chrono>
+#include <thread>
 
 
 enum Suit {
@@ -38,6 +41,7 @@ std::ostream& operator<<(std::ostream& out, const Rank r){
 struct Card{
 	Suit s;
 	Rank r;
+	std::string color;
 	bool dealt = false;
 	int value;
 	
@@ -50,6 +54,12 @@ struct Card{
 		case Rank::Ten: value = 10; break;
 		case Rank::Ace: value = 11; break;
 		default: value = 0; break;
+		}
+		switch(suit){
+			case Suit::Hearts: color = "red"; break;
+			case Suit::Diamonds: color = "red"; break;
+			case Suit::Spades: color = "black"; break;
+			case Suit::Clubs: color = "black"; break;
 		}
 	}
 	
@@ -73,7 +83,8 @@ class Player{
 		Deck currentDeck;
 		int currentScore;
 		int generalScore;
-		int d;
+		bool playingPrivilege = false;
+		bool hasWon = false;
 	public:
 	Player(){
 		currentScore = 0;
@@ -84,11 +95,19 @@ class Player{
 	}
 	bool selected = false;
 	Deck selectedCards;
-	int &getCurrentScore(){
-		return currentScore;
-	}
 	int &getGeneralScore(){
 		return generalScore;
+	}
+	
+	bool &getPrivilege() {
+		return playingPrivilege;
+	}
+	
+	void tryToWin(){
+		if(currentScore > 60){
+			hasWon = true;
+			std::cout << "You have won this frame!" << std::endl;
+		}
 	}
 	
 	void selectCards(){
@@ -136,17 +155,18 @@ class GameManagementSystem{
 	public:
 	int starting; //if == 0, player one starts, if == 2 player two starts
 	GameManagementSystem(Deck oDeck) : orderedDeck(oDeck){
-		std::mt19937 static gen(std::random_device{}());
-		std::uniform_int_distribution<> range(0,1);
-		starting = range(gen);
-		
-		dealCards(orderedDeck, playerOne.getCurrentDeck(), dealtAmount, 5);
-		dealCards(orderedDeck, playerTwo.getCurrentDeck(), dealtAmount, 5);
-		
-		std::cout << "Trump Card: " << generateTrumpCard(orderedDeck, dealtAmount);
 		
 		generalScore.first = playerOne.getGeneralScore();
 		generalScore.second = playerTwo.getGeneralScore();
+	}
+	bool canBeat(const Card &trump, const Card& attacker, const Card &defender){
+		if(defender.s = trump.s && attacker.s != trump.s){
+			return false;
+		}
+		if(attacker.s = trump.s && defender.s != trump.s){
+			return true;
+		}
+		return attacker > defender;
 	}
 	void dealCards(Deck &orderedDeck, Deck &playerHand, int &dealt, int dealCount){
 		try{
@@ -174,7 +194,7 @@ class GameManagementSystem{
 	void addCards(){
 		try{
 			dealCards(orderedDeck, playerOne.getCurrentDeck(), dealtAmount, (5 - playerOne.getCurrentDeck().size()));
-			dealCards(orderedDeck, playerTwo.getCurrentDeck(), dealtAmount, (5 - playerOne.getCurrentDeck().size()));
+			dealCards(orderedDeck, playerTwo.getCurrentDeck(), dealtAmount, (5 - playerTwo.getCurrentDeck().size()));
 			std::cout << "\nCards Added! Player One Current Deck: " << std::endl;
 			for(const auto& card : playerOne.getCurrentDeck()){
 				std::cout << card << " ";
@@ -190,6 +210,31 @@ class GameManagementSystem{
 	}	
 	void mainGame(){
 		while(generalScore.first != 11 || generalScore.second != 11){
+			Card trumpCard = generateTrumpCard(orderedDeck, dealtAmount);
+			
+			std::mt19937 static gen(std::random_device{}());
+			std::uniform_int_distribution<> range(0,1);
+			starting = range(gen);
+			
+			std::string colorInput;
+			
+			(starting == 0) ? (playerOne.getPrivilege() = true && std::cout << "Player One Picks the trump Color: \n") : 
+			(playerTwo.getPrivilege() = true && std::cout << "Player Two Picks the trump Color: \n");
+			
+			std::cin >> colorInput;
+			std::transform(colorInput.begin(), colorInput.end(),colorInput.begin(), [](unsigned char c){return std::tolower(c);});
+			
+			if(colorInput == trumpCard.color){
+				std::cout << "You chose the color correctly, you start the game!" << std::endl;
+				std::cout << "Trump Card: " << trumpCard << std::endl;
+			}
+			else{
+				std::cout << "You chose the color incorrectly!" << std::endl;
+				std::cout << "Trump Card: " << trumpCard << std::endl;
+			}
+			
+			addCards();
+			std::this_thread::sleep_for(std::chrono::seconds(5));
 			
 		}
 	}
@@ -204,7 +249,7 @@ int main(){
 	generateDeck(initialDeck);
 	
 	GameManagementSystem gms(initialDeck);
-	gms.addCards();
+	gms.mainGame();
 	
 	
 }
